@@ -1,4 +1,4 @@
-/*
+	/*
  * Copyright 2022 NXP
  * NXP confidential.
  * This software is owned or controlled by NXP and may only be used strictly
@@ -50,12 +50,17 @@
 #define EXPANDER_GPIOA 0x12
 #define EXPANDER_GPIOB 0x13
 
+#define PINMODE0 (*(volatile int *) 0x4002C040)
+#define PINMODE1 (*(volatile int *) 0x4002C044)
+
+#include <time.h>
+
 volatile int units = 1;
 
 void Start0() {
     I2C0CONSET = CONSET_STA;
     I2C0CONCLR = CONCLR_SIC;
-    while (!(I2C0CONSET & CONSET_SI)) {
+    while (!(I2C0STAT == 0xF8)) {
     }
     I2C0CONCLR = CONCLR_STAC;
 }
@@ -67,7 +72,7 @@ void Stop0() {
 int Write0(int data) {
     I2C0DAT = data;
     I2C0CONCLR = CONCLR_SIC;
-    while (!(I2C0CONSET & CONSET_SI)) {
+    while (!(I2C0STAT == 0xF8)) {
     }
     return I2C0STAT;
 }
@@ -78,9 +83,9 @@ int Read0(int ack) {
     else
         I2C0CONCLR = CONCLR_AAC;
     I2C0CONCLR = CONCLR_SIC;
-    while (!(I2C0CONSET & CONSET_SI)) {
+    while (!(I2C0STAT == 0xF8)) {
     }
-    return I2C0DAT;
+    return I2C0DAT & 0x0000000000FF;
 }
 void Start1() {
     I2C0CONSET = CONSET_STA;
@@ -134,18 +139,30 @@ int Expander_Read(int reg) {
 }
 
 int Temp_Read_Cel(void) {
-    int temp;
+    int MSB;
+    int LSB;
     Start0();
     Write0(TEMP_ADDRESS | 0);
     Write0(0x00);
     Start0();
     Write0(TEMP_ADDRESS | 1);
-    temp = Read0(0);
+    MSB = Read0(1);
+    LSB = Read0(0);
     Stop0();
-    return temp;
+    return ((MSB << 8) | (LSB)) >> 5;
 }
 
 void Initialization() {
+	PINMODE0 |= (1 << 0);
+	PINMODE0 |= (1 << 1);
+	PINMODE0 |= (1 << 2);
+	PINMODE0 |= (1 << 3);
+
+	PINMODE1 &= ~(1 << 23);
+	PINMODE1 |= (1 << 22);
+	PINMODE1 &= ~(1 << 25);
+	PINMODE1 |= (1 << 24);
+
     I2C0SCLH = 5;
     I2C0SCLL = 5;
 
@@ -154,8 +171,8 @@ void Initialization() {
 
     I2C0CONSET = CONSET_I2EN;
 
-    Expander_Write(EXPANDER_IODIRA, 0x00);
-    Expander_Write(EXPANDER_IODIRB, 0xFF);
+    //Expander_Write(EXPANDER_IODIRA, 0x00);
+    //Expander_Write(EXPANDER_IODIRB, 0xFF);
 }
 
 int Convert(int temp) {
@@ -163,26 +180,50 @@ int Convert(int temp) {
 }
 
 void Wait(float secs) {
-    volatile int sec_count = secs * 1e6;
-    while (sec_count > 0) {
-        sec_count--;
+    volatile float sec_count = secs * 9e6;
+    clock_t start_time = clock();
+    while(clock() - start_time < sec_count){}
+}
+
+int BinaryDecimal(int n)
+{
+    int num = n;
+    int dec_value = 0;
+    int base = 1;
+    int temp = num;
+
+    while (temp) {
+        int last_digit = temp % 10;
+        temp = temp / 10;
+
+        dec_value += last_digit * base;
+
+        base = base * 2;
     }
+
+    return dec_value;
 }
 
 int main(void) {
     Initialization();
-    int temp_c;
+    float temp_c;
     int temp_f;
+    int intermediate;
 
     while (1) {
 
-        temp_c = Temp_Read_Cel();
+        intermediate = BinaryDecimal(Temp_Read_Cel());
+        temp_c = intermediate * 0.125;
         temp_f = Convert(temp_c);
         if (temp_f > 99) {
             temp_f = 99;
         }
-        if (temp_f < 10) {
-            temp_f = 10;
+        if (temp_f < 0) {
+            temp_f = 0;
+        }
+        if (units){
+        }
+        else {
         }
     }
     return 0;
