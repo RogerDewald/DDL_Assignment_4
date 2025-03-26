@@ -1,4 +1,4 @@
-	/*
+/*
  * Copyright 2022 NXP
  * NXP confidential.
  * This software is owned or controlled by NXP and may only be used strictly
@@ -50,8 +50,8 @@
 #define EXPANDER_GPIOA 0x12
 #define EXPANDER_GPIOB 0x13
 
-#define PINMODE0 (*(volatile int *) 0x4002C040)
-#define PINMODE1 (*(volatile int *) 0x4002C044)
+#define PINMODE0 (*(volatile int *)0x4002C040)
+#define PINMODE1 (*(volatile int *)0x4002C044)
 
 #include <time.h>
 
@@ -60,7 +60,7 @@ volatile int units = 1;
 void Start0() {
     I2C0CONSET = CONSET_STA;
     I2C0CONCLR = CONCLR_SIC;
-    while (!(I2C0STAT == 0xF8)) {
+    while (((I2C0CONSET >> 3) & 1) == 0) {
     }
     I2C0CONCLR = CONCLR_STAC;
 }
@@ -72,7 +72,7 @@ void Stop0() {
 int Write0(int data) {
     I2C0DAT = data;
     I2C0CONCLR = CONCLR_SIC;
-    while (!(I2C0STAT == 0xF8)) {
+    while (((I2C0CONSET >> 3) & 1) == 0) {
     }
     return I2C0STAT;
 }
@@ -83,14 +83,14 @@ int Read0(int ack) {
     else
         I2C0CONCLR = CONCLR_AAC;
     I2C0CONCLR = CONCLR_SIC;
-    while (!(I2C0STAT == 0xF8)) {
+    while (((I2C0CONSET >> 3) & 1) == 0) {
     }
-    return I2C0DAT & 0x0000000000FF;
+    return I2C0DAT & 255;
 }
 void Start1() {
     I2C0CONSET = CONSET_STA;
     I2C0CONCLR = CONCLR_SIC;
-    while (!(I2C0CONSET & CONSET_SI)) {
+    while (((I2C1CONSET >> 3) & 1) == 0) {
     }
     I2C0CONCLR = CONCLR_STAC;
 }
@@ -102,7 +102,7 @@ void Stop1() {
 int Write1(int data) {
     I2C0DAT = data;
     I2C0CONCLR = CONCLR_SIC;
-    while (!(I2C0CONSET & CONSET_SI)) {
+    while (((I2C1CONSET >> 3) & 1) == 0) {
     }
     return I2C0STAT;
 }
@@ -113,7 +113,7 @@ int Read1(int ack) {
     else
         I2C1CONCLR = CONCLR_AAC;
     I2C1CONCLR = CONCLR_SIC;
-    while (!(I2C1CONSET & CONSET_SI)) {
+    while (((I2C1CONSET >> 3) & 1) == 0) {
     }
     return I2C1DAT;
 }
@@ -153,15 +153,15 @@ int Temp_Read_Cel(void) {
 }
 
 void Initialization() {
-	PINMODE0 |= (1 << 0);
-	PINMODE0 |= (1 << 1);
-	PINMODE0 |= (1 << 2);
-	PINMODE0 |= (1 << 3);
+    PINMODE0 |= (1 << 0);
+    PINMODE0 |= (1 << 1);
+    PINMODE0 |= (1 << 2);
+    PINMODE0 |= (1 << 3);
 
-	PINMODE1 &= ~(1 << 23);
-	PINMODE1 |= (1 << 22);
-	PINMODE1 &= ~(1 << 25);
-	PINMODE1 |= (1 << 24);
+    PINMODE1 &= ~(1 << 23);
+    PINMODE1 |= (1 << 22);
+    PINMODE1 &= ~(1 << 25);
+    PINMODE1 |= (1 << 24);
 
     I2C0SCLH = 5;
     I2C0SCLL = 5;
@@ -171,8 +171,8 @@ void Initialization() {
 
     I2C0CONSET = CONSET_I2EN;
 
-    //Expander_Write(EXPANDER_IODIRA, 0x00);
-    //Expander_Write(EXPANDER_IODIRB, 0xFF);
+    Expander_Write(EXPANDER_IODIRA, 0x00);
+    Expander_Write(EXPANDER_IODIRB, 0xFF);
 }
 
 int Convert(int temp) {
@@ -182,11 +182,11 @@ int Convert(int temp) {
 void Wait(float secs) {
     volatile float sec_count = secs * 9e6;
     clock_t start_time = clock();
-    while(clock() - start_time < sec_count){}
+    while (clock() - start_time < sec_count) {
+    }
 }
 
-int BinaryDecimal(int n)
-{
+int BinaryDecimal(int n) {
     int num = n;
     int dec_value = 0;
     int base = 1;
@@ -202,6 +202,89 @@ int BinaryDecimal(int n)
     }
 
     return dec_value;
+}
+int Switch1(int value) {
+    int output = 0;
+    switch (value) {
+    case 0:
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    default:
+        return 0xFF;
+    }
+}
+int Switch2(int value) {
+    int output = 0;
+    switch (value) {
+    case 0:
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    default:
+        return 0xFF;
+    }
+}
+int Switch3(int value) {
+    int output = 0;
+    switch (value) {
+    case 0:
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    default:
+        return 0xFF;
+    }
+}
+int Switch4(int value) {
+    int output = 0;
+    switch (value) {
+    case 0:
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    default:
+        return 0xFF;
+    }
+}
+
+void display_number(int value) {
+    int tens = value / 10;
+    int ones = value % 10;
+    int output;
+
+    for (int i = 0; i < 50; i++) {
+        output = (Switch1(tens) << 8) | Switch2(tens);
+        Expander_Write(EXPANDER_GPIOA, output);
+        Wait(0.01);
+        output = (Switch3(ones) << 8) | Switch4(ones);
+        Expander_Write(EXPANDER_GPIOA, output);
+        Wait(0.01);
+    }
 }
 
 int main(void) {
@@ -221,10 +304,11 @@ int main(void) {
         if (temp_f < 0) {
             temp_f = 0;
         }
-        if (units){
+        if (units) {
+            display_number(temp_f);
+        } else {
         }
-        else {
-        }
+        Wait(1);
     }
     return 0;
 }
