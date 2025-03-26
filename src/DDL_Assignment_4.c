@@ -50,8 +50,8 @@
 #define EXPANDER_GPIOA 0x12
 #define EXPANDER_GPIOB 0x13
 
-#define PINMODE0 (*(volatile int *)0x4002C040)
-#define PINMODE1 (*(volatile int *)0x4002C044)
+#define PINSEL0 (*(volatile int *)0x4002C000)
+#define PINSEL1 (*(volatile int *)0x4002C004)
 
 #include <time.h>
 
@@ -67,6 +67,8 @@ void Start0() {
 void Stop0() {
     I2C0CONSET = CONSET_STO;
     I2C0CONCLR = CONCLR_SIC;
+    while (((I2C0CONSET >> 4) & 1) == 1) {
+    }
 }
 
 int Write0(int data) {
@@ -88,23 +90,25 @@ int Read0(int ack) {
     return I2C0DAT & 255;
 }
 void Start1() {
-    I2C0CONSET = CONSET_STA;
-    I2C0CONCLR = CONCLR_SIC;
+    I2C1CONSET = CONSET_STA;
+    I2C1CONCLR = CONCLR_SIC;
     while (((I2C1CONSET >> 3) & 1) == 0) {
     }
-    I2C0CONCLR = CONCLR_STAC;
+    I2C1CONCLR = CONCLR_STAC;
 }
 void Stop1() {
-    I2C0CONSET = CONSET_STO;
-    I2C0CONCLR = CONCLR_SIC;
+    I2C1CONSET = CONSET_STO;
+    I2C1CONCLR = CONCLR_SIC;
+    while (((I2C1CONSET >> 4) & 1) == 1) {
+    }
 }
 
 int Write1(int data) {
-    I2C0DAT = data;
-    I2C0CONCLR = CONCLR_SIC;
+    I2C1DAT = data;
+    I2C1CONCLR = CONCLR_SIC;
     while (((I2C1CONSET >> 3) & 1) == 0) {
     }
-    return I2C0STAT;
+    return I2C1STAT;
 }
 
 int Read1(int ack) {
@@ -142,26 +146,27 @@ int Temp_Read_Cel(void) {
     int MSB;
     int LSB;
     Start0();
-    Write0(TEMP_ADDRESS | 0);
+    Write0(~(TEMP_ADDRESS | 0));
     Write0(0x00);
     Start0();
-    Write0(TEMP_ADDRESS | 1);
-    MSB = Read0(1);
-    LSB = Read0(0);
+    Write0(~(TEMP_ADDRESS | 1));
+    MSB = (Read0(1));
+    LSB = (Read0(0));
     Stop0();
-    return ((MSB << 8) | (LSB)) >> 5;
+    return ((MSB << 1) | (LSB)) >> 7;
+    //return ((MSB << 3) | (LSB)) >> 5;
 }
 
 void Initialization() {
-    PINMODE0 |= (1 << 0);
-    PINMODE0 |= (1 << 1);
-    PINMODE0 |= (1 << 2);
-    PINMODE0 |= (1 << 3);
+    PINSEL0 |= (1 << 0);
+    PINSEL0 |= (1 << 1);
+    PINSEL0 |= (1 << 2);
+    PINSEL0 |= (1 << 3);
 
-    PINMODE1 &= ~(1 << 23);
-    PINMODE1 |= (1 << 22);
-    PINMODE1 &= ~(1 << 25);
-    PINMODE1 |= (1 << 24);
+    PINSEL1 &= ~(1 << 23);
+    PINSEL1 |= (1 << 22);
+    PINSEL1 &= ~(1 << 25);
+    PINSEL1 |= (1 << 24);
 
     I2C0SCLH = 5;
     I2C0SCLL = 5;
@@ -171,8 +176,8 @@ void Initialization() {
 
     I2C0CONSET = CONSET_I2EN;
 
-    Expander_Write(EXPANDER_IODIRA, 0x00);
-    Expander_Write(EXPANDER_IODIRB, 0xFF);
+    //Expander_Write(EXPANDER_IODIRA, 0x00);
+    //Expander_Write(EXPANDER_IODIRB, 0x00);
 }
 
 int Convert(int temp) {
@@ -217,7 +222,7 @@ int Switch1(int value) {
     case 8:
     case 9:
     default:
-        return 0xFF;
+        return output;
     }
 }
 int Switch2(int value) {
@@ -234,41 +239,7 @@ int Switch2(int value) {
     case 8:
     case 9:
     default:
-        return 0xFF;
-    }
-}
-int Switch3(int value) {
-    int output = 0;
-    switch (value) {
-    case 0:
-    case 1:
-    case 2:
-    case 3:
-    case 4:
-    case 5:
-    case 6:
-    case 7:
-    case 8:
-    case 9:
-    default:
-        return 0xFF;
-    }
-}
-int Switch4(int value) {
-    int output = 0;
-    switch (value) {
-    case 0:
-    case 1:
-    case 2:
-    case 3:
-    case 4:
-    case 5:
-    case 6:
-    case 7:
-    case 8:
-    case 9:
-    default:
-        return 0xFF;
+        return output;
     }
 }
 
@@ -278,10 +249,10 @@ void display_number(int value) {
     int output;
 
     for (int i = 0; i < 50; i++) {
-        output = (Switch1(tens) << 8) | Switch2(tens);
+    	output = (Switch1(tens) | 240) | (Switch2(ones) | 15);
         Expander_Write(EXPANDER_GPIOA, output);
         Wait(0.01);
-        output = (Switch3(ones) << 8) | Switch4(ones);
+    	output = (Switch2(ones) | 240) | (Switch1(tens) | 15);
         Expander_Write(EXPANDER_GPIOA, output);
         Wait(0.01);
     }
@@ -295,8 +266,7 @@ int main(void) {
 
     while (1) {
 
-        intermediate = BinaryDecimal(Temp_Read_Cel());
-        temp_c = intermediate * 0.125;
+        temp_c = Temp_Read_Cel() * 0.125;
         temp_f = Convert(temp_c);
         if (temp_f > 99) {
             temp_f = 99;
@@ -305,10 +275,10 @@ int main(void) {
             temp_f = 0;
         }
         if (units) {
-            display_number(temp_f);
+            //display_number(temp_f);
         } else {
         }
-        Wait(1);
+        //Wait(1);
     }
     return 0;
 }
