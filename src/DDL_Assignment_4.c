@@ -138,8 +138,8 @@ int Expander_Read(int reg) {
     Write0(reg);
     Start0();
     Write0(EXPANDER_ADDRESS | 1);
-    data = Read1(0);
-    Stop1();
+    data = Read0(0);
+    Stop0();
     return data;
 }
 
@@ -183,8 +183,8 @@ void Initialization() {
     //I2C1CONCLR = CONCLR_I2ENC;
     //I2C1CONSET = CONSET_I2EN;
 
-    //Expander_Write(EXPANDER_IODIRA, 0x01);
-    //Expander_Write(EXPANDER_IODIRB, 0x00);
+    Expander_Write(EXPANDER_IODIRA, 0x01);
+    Expander_Write(EXPANDER_IODIRB, 0x00);
 }
 
 int Convert(int temp) {
@@ -192,10 +192,14 @@ int Convert(int temp) {
 }
 
 void Wait(float secs) {
-    volatile float sec_count = secs * 9e6;
-    clock_t start_time = clock();
-    while (clock() - start_time < sec_count) {
-    }
+    //volatile float sec_count = secs * 4e6;
+    //clock_t start_time = clock();
+    //while (clock() - start_time < sec_count) {
+    //}
+	volatile int sec_count = secs * 5e5;
+	while (sec_count > 0){
+		sec_count--;
+	}
 }
 
 int Switch1(int value) {
@@ -258,34 +262,35 @@ void display_number(int value) {
     int ones = value % 10;
     int output;
 
-    for (int i = 0; i < 50; i++) {
-    	output = (Switch1(tens) | 240) | (Switch2(ones) >> 4);
-        Expander_Write(EXPANDER_GPIOA, output);
-        Wait(0.01);
-    	output = ((Switch2(ones) | 15) << 4) | (Switch1(tens) | 15);
-        Expander_Write(EXPANDER_GPIOB, output);
-        Wait(0.01);
-    }
+    //for (int i = 0; i < 50; i++) {
+    	output = (Switch1(tens) & 240) | (Switch2(ones) >> 4);
+        Expander_Write(EXPANDER_GPIOA, output & 255);
+        //Expander_Write(EXPANDER_GPIOA, 0b00000000);
+        //Wait(0.01);
+    	output = ((Switch1(tens) & 15) << 4) | (Switch2(ones) & 15);
+        Expander_Write(EXPANDER_GPIOB, output & 255);
+        //Expander_Write(EXPANDER_GPIOB, 0b00000000);
+        //Wait(0.01);
+    //}
 }
 
 int main(void) {
     Initialization();
     float temp_c;
     int temp_f;
-    int far;
 
     while (1) {
         temp_c = (float) Temp_Read_Cel() * 0.5;
         temp_f = Convert(temp_c);
 
-    	//if(!(Expander_Read(EXPANDER_GPIOA) & 1) && units) {
-    	//	far = 0;
-        //	Wait(0.02);
-    	//}
-    	//else if(!(Expander_Read(EXPANDER_GPIOA) & 1) && !units) {
-    	//	far = 1;
-        //	Wait(0.02);
-    	//}
+    	if(!(Expander_Read(EXPANDER_GPIOA) & 1) && units) {
+        	units = 0;
+        	Wait(0.2);
+    	}
+    	else if(!(Expander_Read(EXPANDER_GPIOA) & 1) && !units) {
+        	units = 1;
+        	Wait(0.2);
+    	}
 
 
         if (temp_f > 99) {
@@ -294,12 +299,11 @@ int main(void) {
         if (temp_f < 0) {
             temp_f = 0;
         }
-        if (far) {
-         //   display_number(temp_f);
+        if (units) {
+            display_number(temp_f);
         } else {
-        	//display_number(temp_c);
+        	display_number(temp_c);
         }
-        //Wait(1);
     }
     return 0;
 }
